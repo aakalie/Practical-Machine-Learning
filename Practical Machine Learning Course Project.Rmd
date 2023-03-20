@@ -1,0 +1,111 @@
+---
+title: "Practical Machine Learning Course Project"
+author: "A. Solomon"
+date: "2023-03-20"
+output: html_document
+---
+
+## Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit, it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. 
+
+## Data Analysis
+
+In this project, we use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. The participants were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har. 
+
+The goal of this project is to predict the manner in which they did the exercise.A tidy data is created by removing columns with little or no data at all. Cross validation will be done by creating training and test data from training data.
+
+
+```{r}
+library(ggplot2)
+library(caret)
+library(randomForest)
+library(rpart)
+library(rpart.plot)
+library(corrplot)
+```
+
+```{r}
+train_file <-"https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_file <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+train_data <- "./data/pml-training.csv"
+test_data  <- "./data/pml-testing.csv"
+if (!file.exists("./data")) {
+  dir.create("./data")
+}
+if (!file.exists(train_data)) {
+  download.file(train_file, destfile=train_data, method="curl")
+}
+if (!file.exists(test_data)) {
+  download.file(test_file, destfile=test_data, method="curl")
+}
+```
+
+```{r}
+trainFile <- read.csv("./data/pml-training.csv")
+testFile <- read.csv("./data/pml-testing.csv")
+dim(trainFile)
+dim(testFile)
+```
+
+```{r}
+trainFile <- trainFile[,colMeans(is.na(trainFile)) < .9] 
+trainFile <- trainFile[,-c(1:7)] 
+
+nzero <- nearZeroVar(trainFile)
+trainFile <- trainFile[,-nzero]
+dim(trainFile)
+```
+
+### Cross Validation
+The training data is divided into a training set (0.7) and cross validation set (0.3).
+```{r}
+inTrain <- createDataPartition(y=trainFile$classe, p=0.7, list=F)
+train <- trainFile[inTrain,]
+valid <- trainFile[-inTrain,]
+control <- trainControl(method="cv", number=3, verboseIter=F)
+```
+
+#### Random Forest model with 5-fold cross validation
+
+```{r}
+randomForest <- train(classe~., data=train, method="rf", trControl = control, tuneLength = 5)
+
+prediction_RF <- predict(randomForest, valid)
+TRF <- confusionMatrix(prediction_RF, factor(valid$classe))
+TRF
+```
+
+```{r}
+plot(randomForest)
+```
+
+With Random Forest method, the Confusion Matrix achieved was 99.46% accuracy and the Out of Sample Error achieved was 99.31%. Random forests are suitable when  handling a large number of
+inputs, especially when the interactions between variables are unknown. Random forest’s built in cross-validation component gives an unbiased estimate of the forest’s out-of-sample error rate. Prediction of test results is done with Random Forest,
+
+#### Decision Tree
+
+```{r}
+dec_tree <- train(classe ~ ., data=train, method="rpart", tuneLength = 5)
+rpart.plot(dec_tree$finalModel)
+```
+
+```{r}
+prediction_tree <- predict(dec_tree, valid)
+result_tree <- confusionMatrix(prediction_tree, factor(valid$classe))
+result_tree
+```
+
+#### Predict test results with Random Forest
+
+```{r}
+prediction <- predict(randomForest, testFile)
+print(prediction)
+```
+
+```{r}
+correlation_Plot <- cor(train[, -length(names(train))])
+corrplot(correlation_Plot, method="color")
+```
+
+
+
